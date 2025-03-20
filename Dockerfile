@@ -1,27 +1,86 @@
-# Sử dụng hình ảnh Maven chính thức để xây dựng ứng dụng
-FROM maven:3.8.5-openjdk-17 AS build
+pipeline {
+    agent {
+        kubernetes {
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            spec:
+              containers:
+              - name: maven
+                image: maven:3.8.6-eclipse-temurin-17
+                command:
+                - cat
+                tty: true
+              - name: docker
+                image: docker:20.10.24
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - name: docker-socket
+                  mountPath: /var/run/docker.sock
+              volumes:
+              - name: docker-socket
+                hostPath:
+                  path: /var/run/docker.sock
+            """
+        }
+    }
 
-# Đặt thư mục làm việc trong container
-WORKDIR /app
+    environment {
+        HARBOR_REGISTRY = "localhost:80"
+        HARBOR_PROJECT = "mlf-web"
+        IMAGE_NAME = "mlf-api"
+        IMAGE_TAG = "latest"
+        JAR_FILE = "league-api-0.0.1-SNAPSHOT.jar"  // Đặt tên đúng theo pom.xml
+    }
 
-# Sao chép file pom.xml và các file nguồn vào container
-COPY pom.xml .
-COPY src ./src
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
-# Biên dịch và đóng gói ứng dụng
-RUN mvn clean package -DskipTests
+        stage('Build & Test') {
+            steps {
+                container('maven') {
+                    sh 'mvn clean package -DskipTests'
+                    sh 'ls -l target/'  // Kiểm tra xem file JAR có được tạo không
+                }
+            }
+        }
 
-# Sử dụng hình ảnh OpenJDK nhẹ để chạy ứng dụng
-FROM openjdk:17-jdk-slim
+        stage('Run Unit Tests') {
+            steps {
+                container('maven') {
+                    sh 'mvn test'
+                }
+            }
+        }
 
-# Đặt thư mục làm việc trong container
-WORKDIR /app
+        stage('Build Docker Image') {
+            steps {
+                container('docker') {
+                    sh """
+                    docker build --build-arg JAR_FILE=$JAR_FILE -t $HARBOR_REGISTRY/$HARBOR_PROJECT/$IMAGE_NAME:$IMAGE_TAG .
+                    """
+                }
+            }
+        }
 
-# Sao chép file JAR từ giai đoạn build
-COPY --from=build /app/target/mlf-web-api.jar .
-
-# Mở cổng mà ứng dụng sẽ chạy
-EXPOSE 8080
-
-# Lệnh để chạy ứng dụng
-CMD ["java", "-jar", "mlf-web-api.jar"]
+        stage('Push to Harbor') {
+            steps {
+                container('docker') {
+                    withCredentials([usernamePassword(credentialsId: 'harbor-credentials', usernameVariable: 'HARBOR_USER', passwordVariable: 'HARBOR_PASSWORD')]) {
+                        sh """
+                        echo $HARBOR_PASSWORD | docker login $HARBOR_REGISTRY -u $HARBOR_USER --password-stdin
+                        docker push $HARBOR_REGISTRY/$HARBOR_PROJECT/$IMAGE_NAME:$IMAGE_TAG
+                        docker logout $HARBOR_REGISTRY
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
