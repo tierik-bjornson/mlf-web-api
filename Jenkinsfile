@@ -72,7 +72,7 @@ pipeline {
         stage('Push to Harbor') {
             steps {
                 container('docker') {
-                    withCredentials([usernamePassword(credentialsId: 'harbor-cre', usernameVariable: 'admin', passwordVariable: 'Harbor12345')]) {
+                    withCredentials([usernamePassword(credentialsId: 'harbor-cre', usernameVariable: 'HARBOR_USER', passwordVariable: 'HARBOR_PASSWORD')]) {
                         sh """
                         echo $HARBOR_PASSWORD | docker login $HARBOR_REGISTRY -u $HARBOR_USER --password-stdin
                         docker push $HARBOR_REGISTRY/$HARBOR_PROJECT/$IMAGE_NAME:$IMAGE_TAG
