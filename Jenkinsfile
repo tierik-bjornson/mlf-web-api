@@ -32,6 +32,7 @@ pipeline {
         HARBOR_PROJECT = "mlf-web"
         IMAGE_NAME = "mlf-api"
         IMAGE_TAG = "latest"
+        JAR_FILE = "league-api-0.0.1-SNAPSHOT.jar"  // Đặt tên đúng theo pom.xml
     }
 
     stages {
@@ -45,6 +46,7 @@ pipeline {
             steps {
                 container('maven') {
                     sh 'mvn clean package -DskipTests'
+                    sh 'ls -l target/'  // Kiểm tra xem file JAR có được tạo không
                 }
             }
         }
@@ -61,7 +63,7 @@ pipeline {
             steps {
                 container('docker') {
                     sh """
-                    docker build -t $HARBOR_REGISTRY/$HARBOR_PROJECT/$IMAGE_NAME:$IMAGE_TAG .
+                    docker build --build-arg JAR_FILE=$JAR_FILE -t $HARBOR_REGISTRY/$HARBOR_PROJECT/$IMAGE_NAME:$IMAGE_TAG .
                     """
                 }
             }
