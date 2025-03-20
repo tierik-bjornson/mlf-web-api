@@ -28,7 +28,7 @@ pipeline {
     }
 
     environment {
-        HARBOR_REGISTRY = "http://host.docker.internal:80"
+        HARBOR_REGISTRY = "host.docker.internal:80"
         HARBOR_PROJECT = "mlf-web"
         IMAGE_NAME = "mlf-api"
         IMAGE_TAG = "latest"
