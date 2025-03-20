@@ -1,23 +1,30 @@
 pipeline {
-    agent any
-
-    environment {
-      
-        GIT_CREDENTIALS = "githubtk"
+    agent {
+        kubernetes {
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            spec:
+              containers:
+              - name: maven
+                image: maven:3.8.6-openjdk-11
+                command:
+                - cat
+                tty: true
+            """
+        }
     }
 
     stages {
         stage('Checkout') {
             steps {
-                script {
-                    checkout scm
-                }
+                checkout scm
             }
         }
 
         stage('Build & Test') {
             steps {
-                script {
+                container('maven') {  // Sử dụng container Maven
                     sh 'mvn clean package -DskipTests'
                 }
             }
@@ -25,19 +32,10 @@ pipeline {
 
         stage('Run Unit Tests') {
             steps {
-                script {
+                container('maven') {
                     sh 'mvn test'
                 }
             }
-        }
-    }
-
-    post {
-        success {
-            echo "Pipeline executed successfully!"
-        }
-        failure {
-            echo "Pipeline failed!"
         }
     }
 }
