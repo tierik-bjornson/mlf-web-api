@@ -16,6 +16,8 @@ pipeline {
                 command:
                 - cat
                 tty: true
+                securityContext:
+                  privileged: true
                 volumeMounts:
                 - name: docker-socket
                   mountPath: /var/run/docker.sock
@@ -28,11 +30,11 @@ pipeline {
     }
 
     environment {
-        HARBOR_REGISTRY = "host.docker.internal:80"
+        HARBOR_REGISTRY = "10.8.0.2:80"  // Dùng IP của máy host (hoặc đổi thành localhost nếu sửa docker-compose)
         HARBOR_PROJECT = "mlf-web"
         IMAGE_NAME = "mlf-api"
         IMAGE_TAG = "latest"
-        JAR_FILE = "league-api-0.0.1-SNAPSHOT.jar"  // Đặt tên đúng theo pom.xml
+        JAR_FILE = "league-api-0.0.1-SNAPSHOT.jar"  // Đảm bảo đúng tên file JAR
     }
 
     stages {
@@ -46,7 +48,7 @@ pipeline {
             steps {
                 container('maven') {
                     sh 'mvn clean package -DskipTests'
-                    sh 'ls -l target/'  // Kiểm tra xem file JAR có được tạo không
+                    sh 'ls -l target/'  // Kiểm tra xem file JAR có tạo không
                 }
             }
         }
@@ -74,7 +76,7 @@ pipeline {
                 container('docker') {
                     withCredentials([usernamePassword(credentialsId: 'harbor-cre', usernameVariable: 'HARBOR_USER', passwordVariable: 'HARBOR_PASSWORD')]) {
                         sh """
-                        echo $HARBOR_PASSWORD | docker login $HARBOR_REGISTRY -u $HARBOR_USER --password-stdin
+                        echo "\$HARBOR_PASSWORD" | docker login $HARBOR_REGISTRY -u "\$HARBOR_USER" --password-stdin
                         docker push $HARBOR_REGISTRY/$HARBOR_PROJECT/$IMAGE_NAME:$IMAGE_TAG
                         docker logout $HARBOR_REGISTRY
                         """
